@@ -34,7 +34,7 @@ const calculatePathMatrix = (pos: Position, terrain: InternalTerrain): PathMatri
 
     for (let y = Math.max(0, item.y - 1); y < Math.min(50, item.y + 2); y++) {
       for (let x = Math.max(0, item.x - 1); x < Math.min(50, item.x + 2); x++) {
-        if (terrain[x][y] === TERRAIN_MASK_PLAIN && matrix[x][y] === Number.MAX_VALUE) {
+        if (terrain[x][y] !== TERRAIN_MASK_WALL && matrix[x][y] === Number.MAX_VALUE) {
           matrix[x][y] = item.distance + 1;
           queue.push({ x, y, distance: item.distance + 1 });
         }
@@ -50,7 +50,7 @@ const createSourceInfo = (source: Source, spawn: StructureSpawn, terrain: Intern
 
   for (let y = Math.max(0, source.pos.y - 1); y < Math.min(50, source.pos.y + 2); y++)
     for (let x = Math.max(0, source.pos.x - 1); x < Math.min(50, source.pos.x + 2); x++) {
-      if (terrain[x][y] === TERRAIN_MASK_PLAIN) {
+      if (terrain[x][y] !== TERRAIN_MASK_WALL) {
         entryPoints.push({ x, y });
       }
     }
@@ -117,6 +117,11 @@ const generateRoomMemory = (room: Room) => {
 };
 
 const generateConstructionSites = (room: Room) => {
+  generateContainerConstructionSites(room);
+  generateExtensionsCounstructionSites(room);
+};
+
+const generateContainerConstructionSites = (room: Room) => {
   if (!room.memory.generated || !room.memory.sourcesInfo) return;
   let sites = room.find(FIND_MY_CONSTRUCTION_SITES);
   let structures = room.find(FIND_STRUCTURES);
@@ -127,6 +132,67 @@ const generateConstructionSites = (room: Room) => {
 
     if (!isBuilt) {
       room.createConstructionSite(si.containerPosition.x, si.containerPosition.y, STRUCTURE_CONTAINER);
+    }
+  }
+};
+
+const generateExtensionsCounstructionSites = (room: Room) => {
+  const exstensions = room.find(FIND_STRUCTURES).filter(s => s.structureType === STRUCTURE_EXTENSION);
+  const extensionConstructionSites = room
+    .find(FIND_MY_CONSTRUCTION_SITES)
+    .filter(s => s.structureType === STRUCTURE_EXTENSION);
+
+  const totalExtensions = exstensions.length + extensionConstructionSites.length;
+
+  const controllerLevel = room.controller?.level ?? 0;
+
+  const totalAvailableExtensions = controllerLevel > 2 ? (controllerLevel - 2) * 10 : controllerLevel == 2 ? 5 : 0;
+
+  let extensionsToBuild = totalAvailableExtensions - totalExtensions;
+
+  if (extensionsToBuild === 0) return;
+
+  const spawn = room.find(FIND_MY_SPAWNS)[0];
+
+  const visited: boolean[][] = Array.from({ length: 50 }, e => Array(50).fill(false));
+
+  const queue: Position[] = [];
+  const buildPositions: Position[] = [];
+
+  queue.push({ x: spawn.pos.x, y: spawn.pos.y });
+  visited[spawn.pos.x][spawn.pos.y] = true;
+
+  while (extensionsToBuild > 0 && queue.length > 0) {
+    const position = queue.shift()!;
+
+    const area = room.lookAtArea(position.y - 1, position.x - 1, position.y + 1, position.x + 1);
+
+    let canBuild = true;
+
+    for (let y = position.y - 1; y <= position.y + 1; y++) {
+      for (let x = position.x - 1; x <= position.x + 1; x++) {
+        const array = area[y][x];
+
+        canBuild =
+          canBuild &&
+          array.every(
+            a =>
+              a.type === "creep" ||
+              a.type === "powerCreep" ||
+              a.type === "flag" ||
+              (a.type === "terrain" && a.terrain !== "wall")
+          );
+
+        if (!visited[x][y] && x > 0 && x < 49 && y > 0 && y < 49) {
+          queue.push({ x, y });
+          visited[x][y] = true;
+        }
+      }
+    }
+
+    if (canBuild) {
+      room.createConstructionSite(position.x, position.y, STRUCTURE_EXTENSION);
+      break; // one per tick for now
     }
   }
 };

@@ -22,7 +22,7 @@ const builderManager = (creep: Creep) => {
   }
   if (memory.job === "building") {
     if (used_capacity > 0) {
-      var targets = creep.room.find(FIND_STRUCTURES, {
+      let targets = creep.room.find(FIND_STRUCTURES, {
         filter: structure => {
           return (
             (structure.structureType == STRUCTURE_EXTENSION || structure.structureType == STRUCTURE_SPAWN) &&
@@ -35,6 +35,15 @@ const builderManager = (creep: Creep) => {
         const result = creep.transfer(targets[0], RESOURCE_ENERGY);
         if (result === ERR_NOT_IN_RANGE) {
           creep.moveTo(targets[0].pos.x, targets[0].pos.y);
+        }
+      } else {
+        let buildTargets = creep.room.find(FIND_CONSTRUCTION_SITES);
+
+        if (buildTargets.length > 0) {
+          const result = creep.build(buildTargets[0]);
+          if (result === ERR_NOT_IN_RANGE) {
+            creep.moveTo(buildTargets[0].pos.x, buildTargets[0].pos.y);
+          }
         }
       }
     } else {

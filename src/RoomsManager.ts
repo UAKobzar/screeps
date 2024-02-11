@@ -1,3 +1,4 @@
+import { createDefaultBuilder, createDefaultWorker } from "CreepManager/utils";
 import { TimerManager } from "TimerManager";
 import { sortBy } from "lodash";
 
@@ -197,38 +198,16 @@ const generateExtensionsCounstructionSites = (room: Room) => {
   }
 };
 
-const createDefaultWorker = (energyCapacity: number): BodyPartConstant[] => {
-  const workCapacity = energyCapacity - BODYPART_COST.move - BODYPART_COST.carry;
-  const workCount = workCapacity / BODYPART_COST.work;
-
-  const parts = [...Array(workCount).fill(WORK), MOVE, CARRY];
-
-  return parts;
-};
-
-const createDefaultBuilder = (energyCapacity: number): BodyPartConstant[] => {
-  const moveCarryCapacity = energyCapacity - BODYPART_COST.work;
-  const moveCarryCount = moveCarryCapacity / (BODYPART_COST.move + BODYPART_COST.carry);
-
-  const parts = [...Array(moveCarryCount).fill(MOVE), ...Array(moveCarryCount).fill(CARRY), WORK];
-
-  return parts;
-};
-
 const generateSpawnQueue = (room: Room) => {
   if (room.memory.generated == false || room.memory.sourcesInfo === undefined || room.memory.spawnQueueCreated === true)
     return;
   const spawn = room.find(FIND_MY_SPAWNS)[0];
   if (spawn === undefined) return;
-  const energyCapacity = spawn.store.getCapacity(RESOURCE_ENERGY);
 
-  const workerParts = createDefaultWorker(energyCapacity);
-  const builderParts = createDefaultBuilder(energyCapacity);
-
-  let queue: [BodyPartConstant[], string, CreepMemory][] = [];
+  let queue: [Role, string, CreepMemory][] = [];
 
   for (let sourceInfo of sortBy(room.memory.sourcesInfo, s => s.order)) {
-    const workers = sourceInfo.workerPositions.map<[BodyPartConstant[], string, CreepMemory]>(wp => {
+    const workers = sourceInfo.workerPositions.map<[Role, string, CreepMemory]>(wp => {
       const memory: CreepMemory = {
         room: room.name,
         roleMemory: {
@@ -241,10 +220,10 @@ const generateSpawnQueue = (room: Room) => {
           job: "working"
         }
       };
-      return [workerParts, `${room.name}_worker_${wp.x}:${wp.y}`, memory];
+      return ["worker", `${room.name}_worker_${wp.x}:${wp.y}`, memory];
     });
-    const builder: [BodyPartConstant[], string, CreepMemory] = [
-      builderParts,
+    const builder: [Role, string, CreepMemory] = [
+      "builder",
       `${room.name}_builder_${sourceInfo.containerPosition.x}:${sourceInfo.containerPosition.y}`,
       {
         room: room.name,
@@ -255,8 +234,8 @@ const generateSpawnQueue = (room: Room) => {
         }
       }
     ];
-    const upgrader: [BodyPartConstant[], string, CreepMemory] = [
-      builderParts,
+    const upgrader: [Role, string, CreepMemory] = [
+      "upgrader",
       `${room.name}_upgrader_${sourceInfo.containerPosition.x}:${sourceInfo.containerPosition.y}`,
       {
         room: room.name,

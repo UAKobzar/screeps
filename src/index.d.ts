@@ -1,6 +1,6 @@
 //import { Functions, TimerEvent } from "TimerManager/types";
 
-type Role = "worker";
+type Role = "worker" | "builder" | "upgrader";
 
 interface Position {
   x: number;
@@ -62,7 +62,7 @@ interface CreepMemory {
 }
 
 type TimerFunctions = {
-  spawnCreep: (spanwId: Id<StructureSpawn>, parts: BodyPartConstant[], creepName: string) => void;
+  spawnCreep: (spanwId: Id<StructureSpawn>, creepRole: Role, creepName: string) => void;
 };
 
 interface TimerEvent<K extends keyof TimerFunctions> {

@@ -55,9 +55,9 @@ export const TimerManager = {
     }
 
     for (let event of events) {
-      let f = Functions[event.functionName];
+      let f: any = Functions[event.functionName]; //todo try to fix
       if (f) {
-        f(...event.params);
+        f.apply(null, event.params);
       } else {
         console.warn(event.functionName + "NOT FOUND");
       }

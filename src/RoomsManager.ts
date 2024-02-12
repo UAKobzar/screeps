@@ -120,6 +120,7 @@ const generateRoomMemory = (room: Room) => {
 const generateConstructionSites = (room: Room) => {
   generateContainerConstructionSites(room);
   generateExtensionsCounstructionSites(room);
+  //generateRoads(room); -- move to timer
 };
 
 const generateContainerConstructionSites = (room: Room) => {
@@ -194,6 +195,29 @@ const generateExtensionsCounstructionSites = (room: Room) => {
     if (canBuild) {
       room.createConstructionSite(position.x, position.y, STRUCTURE_EXTENSION);
       break; // one per tick for now
+    }
+  }
+};
+
+const generateRoads = (room: Room) => {
+  const spawn = room.find(FIND_MY_SPAWNS)[0];
+  if (spawn === undefined) return;
+
+  const structures = room.find(FIND_STRUCTURES, {
+    filter: s => s.structureType !== STRUCTURE_RAMPART && s.structureType !== STRUCTURE_SPAWN
+  });
+
+  let usedPathes: PathStep[][] = [];
+
+  for (let structure of structures) {
+    var path = structure.pos.findPathTo(spawn.pos.x, spawn.pos.y, { ignoreCreeps: true });
+
+    usedPathes.push(path);
+  }
+
+  for (let usedPath of usedPathes) {
+    for (let step of usedPath) {
+      room.createConstructionSite(step.x, step.y, STRUCTURE_ROAD);
     }
   }
 };

@@ -1,6 +1,7 @@
 import { getContainer, isConstructionSite } from "./utils";
 
 const builderManager = (creep: Creep) => {
+  // todo rework in better manner
   const memory = creep.memory.roleMemory as BuilderMemory;
   const free_capacity = creep.store.getFreeCapacity(RESOURCE_ENERGY);
   const used_capacity = creep.store.getUsedCapacity(RESOURCE_ENERGY);
@@ -43,6 +44,14 @@ const builderManager = (creep: Creep) => {
           const result = creep.build(buildTarget);
           if (result === ERR_NOT_IN_RANGE) {
             creep.moveTo(buildTarget.pos.x, buildTarget.pos.y);
+          }
+        } else {
+          const repairTarget = creep.pos.findClosestByPath(FIND_STRUCTURES, { filter: s => s.hits < s.hitsMax });
+          if (repairTarget) {
+            const result = creep.repair(repairTarget);
+            if (result === ERR_NOT_IN_RANGE) {
+              creep.moveTo(repairTarget.pos.x, repairTarget.pos.y);
+            }
           }
         }
       }

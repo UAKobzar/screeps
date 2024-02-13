@@ -228,57 +228,51 @@ const generateSpawnQueue = (room: Room) => {
   const spawn = room.find(FIND_MY_SPAWNS)[0];
   if (spawn === undefined) return;
 
-  let queue: [Role, string, CreepMemory][] = [];
+  let queue: [string, CreepMemory][] = [];
 
   for (let sourceInfo of sortBy(room.memory.sourcesInfo, s => s.order)) {
-    const workers = sourceInfo.workerPositions.map<[Role, string, CreepMemory]>(wp => {
-      const memory: CreepMemory = {
+    const workers = sourceInfo.workerPositions.map<[string, CreepMemory]>(wp => {
+      const memory: TypedCreepMemory<
+        [ROLE_HARVESTER, ROLE_WITHDRAWER, ROLE_SPAWN_TRANSFERER, ROLE_BUILDER, ROLE_MAINTANANCE, ROLE_TRANSFERER]
+      > = {
         room: room.name,
+        roles: [
+          ROLE_HARVESTER,
+          ROLE_WITHDRAWER,
+          ROLE_SPAWN_TRANSFERER,
+          ROLE_BUILDER,
+          ROLE_MAINTANANCE,
+          ROLE_TRANSFERER
+        ],
         roleMemory: {
-          role: "worker",
           sourceInfo: {
-            containerPosition: sourceInfo.containerPosition,
             sourceId: sourceInfo.id,
-            workingPosition: wp
+            harvestingPosition: wp
           },
-          job: "working"
+          job: ROLE_HARVESTER
         }
       };
-      return ["worker", `${room.name}_worker_${wp.x}:${wp.y}`, memory];
+      return [`${room.name}_worker_${wp.x}:${wp.y}`, memory];
     });
-    const builder: [Role, string, CreepMemory] = [
-      "builder",
-      `${room.name}_builder_${sourceInfo.containerPosition.x}:${sourceInfo.containerPosition.y}`,
-      {
-        room: room.name,
-        roleMemory: {
-          role: "builder",
-          containerPosition: sourceInfo.containerPosition,
-          job: "gathering"
-        }
-      }
-    ];
-    const upgrader: [Role, string, CreepMemory] = [
-      "upgrader",
+    const upgrader: [string, TypedCreepMemory<[ROLE_WITHDRAWER, ROLE_UPGRADER]>] = [
       `${room.name}_upgrader_${sourceInfo.containerPosition.x}:${sourceInfo.containerPosition.y}`,
       {
         room: room.name,
+        roles: [ROLE_WITHDRAWER, ROLE_UPGRADER],
         roleMemory: {
-          role: "upgrader",
-          containerPosition: sourceInfo.containerPosition,
-          job: "gathering"
+          job: ROLE_WITHDRAWER
         }
       }
     ];
 
-    queue = [...queue, ...workers, builder, upgrader];
+    queue = [...queue, ...workers, upgrader];
   }
 
   let tickdelay = 1;
 
   for (let creep of queue) {
-    TimerManager.push("spawnCreep", tickdelay, spawn.id, creep[0], creep[1]);
-    Memory.creeps[creep[1]] = creep[2];
+    TimerManager.push("spawnCreep", tickdelay, spawn.id, creep[0]);
+    Memory.creeps[creep[0]] = creep[1];
   }
 
   room.memory.spawnQueueCreated = true;

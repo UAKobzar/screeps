@@ -33,10 +33,15 @@ export const getContainer = (
 };
 
 export const createDefaultWorker = (energyCapacity: number): BodyPartConstant[] => {
-  const workCapacity = energyCapacity - BODYPART_COST.move - BODYPART_COST.carry;
-  const workCount = Math.floor(workCapacity / BODYPART_COST.work);
+  const batchCost = BODYPART_COST.work + BODYPART_COST.carry + BODYPART_COST.move;
 
-  const parts = [...Array(workCount).fill(WORK), MOVE, CARRY];
+  const totalAmountOfBatches = Math.floor(energyCapacity / batchCost);
+
+  const parts = [
+    ...Array(totalAmountOfBatches).fill(MOVE),
+    ...Array(totalAmountOfBatches).fill(CARRY),
+    ...Array(totalAmountOfBatches).fill(WORK)
+  ];
 
   return parts;
 };

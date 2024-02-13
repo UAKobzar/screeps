@@ -1,7 +1,16 @@
 import { comparePostion } from "utils/position";
+import {
+  ROLE_HARVESTER,
+  ROLE_BUILDER,
+  ROLE_UPGRADER,
+  ROLE_MAINTANANCE,
+  ROLE_TRANSFERER,
+  ROLE_SPAWN_TRANSFERER,
+  ROLE_WITHDRAWER
+} from "utils/constants/roles";
 
 const hasStore = (structure: any): structure is { store: StoreDefinition } => {
-  return structure.store !== null;
+  return structure.store !== null && structure.store !== undefined;
 };
 
 const doOrMove = <F extends CreepDoOrMoveFunctions>(
@@ -21,7 +30,7 @@ const harvestEnergy: CreepTask = (creep: Creep): boolean => {
   const free_capacity = creep.store.getFreeCapacity(RESOURCE_ENERGY);
   const used_capacity = creep.store.getUsedCapacity(RESOURCE_ENERGY);
 
-  if (memory.job === "harvester" && free_capacity > 0) return false; //can't harvest more
+  if (memory.job === "harvester" && free_capacity === 0) return false; //can't harvest more
   if (memory.job !== "harvester" && used_capacity > 0) return false; //doing something else
 
   const source = Game.getObjectById(memory.sourceInfo.sourceId)!;
@@ -126,7 +135,7 @@ const withdraw: CreepTask = (creep: Creep): boolean => {
   const free_capacity = creep.store.getFreeCapacity(RESOURCE_ENERGY);
   const used_capacity = creep.store.getUsedCapacity(RESOURCE_ENERGY);
 
-  if (memory.job === "withdrawer" && free_capacity > 0) return false; //can't withdraw more
+  if (memory.job === "withdrawer" && free_capacity === 0) return false; //can't withdraw more
   if (memory.job !== "withdrawer" && used_capacity > 0) return false; //doing something else
 
   if (free_capacity === 0) return false;

@@ -1,4 +1,12 @@
-import { createDefaultBuilder, createDefaultWorker } from "CreepManager/utils";
+import {
+  ROLE_HARVESTER,
+  ROLE_BUILDER,
+  ROLE_UPGRADER,
+  ROLE_MAINTANANCE,
+  ROLE_TRANSFERER,
+  ROLE_SPAWN_TRANSFERER,
+  ROLE_WITHDRAWER
+} from "utils/constants/roles";
 import { TimerManager } from "TimerManager";
 import { sortBy } from "lodash";
 
@@ -134,6 +142,7 @@ const generateContainerConstructionSites = (room: Room) => {
 
     if (!isBuilt) {
       room.createConstructionSite(si.containerPosition.x, si.containerPosition.y, STRUCTURE_CONTAINER);
+      generateRoad(room, new RoomPosition(si.containerPosition.x, si.containerPosition.y, room.name));
     }
   }
 };
@@ -182,7 +191,15 @@ const generateExtensionsCounstructionSites = (room: Room) => {
               a.type === "creep" ||
               a.type === "powerCreep" ||
               a.type === "flag" ||
-              (a.type === "terrain" && a.terrain !== "wall")
+              (a.type === "structure" &&
+                a.structure?.structureType === "road" &&
+                x !== position.x &&
+                y !== position.y) ||
+              (a.type === "constructionSite" &&
+                a.constructionSite?.structureType === "road" &&
+                x !== position.x &&
+                y !== position.y) ||
+              (a.type === "terrain" && a.terrain !== "wall") //todo rewrite
           );
 
         if (!visited[x][y] && x > 0 && x < 49 && y > 0 && y < 49) {
@@ -194,6 +211,7 @@ const generateExtensionsCounstructionSites = (room: Room) => {
 
     if (canBuild) {
       room.createConstructionSite(position.x, position.y, STRUCTURE_EXTENSION);
+      generateRoad(room, new RoomPosition(position.x, position.y, room.name));
       break; // one per tick for now
     }
   }
@@ -222,6 +240,17 @@ const generateRoads = (room: Room) => {
   }
 };
 
+const generateRoad = (room: Room, pos: RoomPosition) => {
+  const spawn = room.find(FIND_MY_SPAWNS)[0];
+  if (spawn === undefined) return;
+
+  let path = pos.findPathTo(spawn.pos.x, spawn.pos.y, { ignoreCreeps: true });
+
+  for (let step of path) {
+    room.createConstructionSite(step.x, step.y, STRUCTURE_ROAD);
+  }
+};
+
 const generateSpawnQueue = (room: Room) => {
   if (room.memory.generated == false || room.memory.sourcesInfo === undefined || room.memory.spawnQueueCreated === true)
     return;
@@ -233,17 +262,10 @@ const generateSpawnQueue = (room: Room) => {
   for (let sourceInfo of sortBy(room.memory.sourcesInfo, s => s.order)) {
     const workers = sourceInfo.workerPositions.map<[string, CreepMemory]>(wp => {
       const memory: TypedCreepMemory<
-        [ROLE_HARVESTER, ROLE_WITHDRAWER, ROLE_SPAWN_TRANSFERER, ROLE_BUILDER, ROLE_MAINTANANCE, ROLE_TRANSFERER]
+        [ROLE_HARVESTER, ROLE_SPAWN_TRANSFERER, ROLE_TRANSFERER, ROLE_BUILDER, ROLE_MAINTANANCE, ROLE_UPGRADER]
       > = {
         room: room.name,
-        roles: [
-          ROLE_HARVESTER,
-          ROLE_WITHDRAWER,
-          ROLE_SPAWN_TRANSFERER,
-          ROLE_BUILDER,
-          ROLE_MAINTANANCE,
-          ROLE_TRANSFERER
-        ],
+        roles: [ROLE_HARVESTER, ROLE_SPAWN_TRANSFERER, ROLE_TRANSFERER, ROLE_BUILDER, ROLE_MAINTANANCE, ROLE_UPGRADER],
         roleMemory: {
           sourceInfo: {
             sourceId: sourceInfo.id,

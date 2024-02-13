@@ -2,7 +2,6 @@ import { ErrorMapper } from "utils/ErrorMapper";
 import RoomsManager from "RoomsManager";
 import { TimerManager } from "TimerManager";
 import CreepManager from "CreepManager";
-
 declare global {
   /*
     Example types, expand on these or remove them and add your own.
@@ -17,10 +16,14 @@ declare global {
   namespace NodeJS {
     interface Global {
       log: any;
+      ROLE_HARVESTER: ROLE_HARVESTER;
+      ROLE_BUILDER: ROLE_BUILDER;
     }
   }
 }
 
+global.ROLE_HARVESTER = "harvester";
+global.ROLE_BUILDER = "builder";
 // When compiling TS to JS and bundling with rollup, the line numbers and file names in error messages change
 // This utility uses source maps to get the line numbers and file names of the original, TS source code
 export const loop = ErrorMapper.wrapLoop(() => {

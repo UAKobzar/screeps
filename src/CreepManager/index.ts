@@ -1,17 +1,22 @@
-import builderManager from "./builderManager";
-import upgraderManager from "./upgraderManager";
-import workerManager from "./workerManager";
+import taskMap from "./creepTasks";
+
+const doJob = (creep: Creep, job: Role): boolean => {
+  const task = taskMap[job];
+  return task(creep);
+};
 
 const CreepManager = {
   run: () => {
     for (let creepName in Game.creeps) {
       const creep = Game.creeps[creepName];
-      if (creep.memory.roleMemory.role == "worker") {
-        workerManager(creep);
-      } else if (creep.memory.roleMemory.role == "builder") {
-        builderManager(creep);
-      } else if (creep.memory.roleMemory.role == "upgrader") {
-        upgraderManager(creep);
+      const currentJob = creep.memory.roleMemory.job as Role;
+      if (!doJob(creep, currentJob)) {
+        for (let role in creep.memory.roles) {
+          let typedRole = role as Role;
+          if (doJob(creep, typedRole)) {
+            creep.memory.roleMemory.job = typedRole;
+          }
+        }
       }
     }
   }

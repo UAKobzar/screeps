@@ -81,7 +81,9 @@ const repair: CreepTask = (creep: Creep): boolean => {
 
   if (used_capacity === 0) return false;
 
-  const repairTarget = creep.pos.findClosestByPath(FIND_STRUCTURES, { filter: s => s.hits < s.hitsMax });
+  const repairTarget = creep.pos.findClosestByPath(FIND_STRUCTURES, {
+    filter: s => s.structureType !== STRUCTURE_WALL && s.structureType !== STRUCTURE_RAMPART && s.hits < s.hitsMax
+  });
   if (!repairTarget) return false; // nothing to repair
 
   doOrMove(creep, repairTarget.pos, creep.repair, repairTarget);
@@ -90,9 +92,10 @@ const repair: CreepTask = (creep: Creep): boolean => {
 };
 
 const transfer: CreepTask = (creep: Creep): boolean => {
-  const memory = (creep.memory as TypedCreepMemory<[ROLE_TRANSFERER]>).roleMemory;
+  const memory = (creep.memory as TypedCreepMemory<[ROLE_TRANSFERER, ROLE_WITHDRAWER]>).roleMemory;
   const used_capacity = creep.store.getUsedCapacity(RESOURCE_ENERGY);
 
+  if (memory.job === "withdrawer") return false; // do not transfer we just withdrawed
   if (used_capacity === 0) return false;
 
   const target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
@@ -140,11 +143,28 @@ const withdraw: CreepTask = (creep: Creep): boolean => {
 
   if (free_capacity === 0) return false;
 
-  const target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
-    filter: structure => {
-      return structure.structureType == STRUCTURE_CONTAINER && structure.store.getUsedCapacity(RESOURCE_ENERGY) > 0;
-    }
+  const groundTarget = creep.pos.findClosestByPath(FIND_DROPPED_RESOURCES);
+
+  if (groundTarget) {
+    doOrMove(creep, groundTarget.pos, creep.pickup, groundTarget);
+    return true;
+  }
+
+  let target: Ruin | Tombstone | AnyStructure | null = creep.pos.findClosestByPath(FIND_RUINS, {
+    filter: a => a.store.getUsedCapacity() > 0
   });
+  target =
+    target ||
+    creep.pos.findClosestByPath(FIND_TOMBSTONES, {
+      filter: a => a.store.getUsedCapacity() > 0
+    });
+  target =
+    target ||
+    creep.pos.findClosestByPath(FIND_STRUCTURES, {
+      filter: structure => {
+        return structure.structureType == STRUCTURE_CONTAINER && structure.store.getUsedCapacity(RESOURCE_ENERGY) > 0;
+      }
+    });
 
   if (!target) return false;
 

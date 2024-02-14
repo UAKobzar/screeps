@@ -9,6 +9,8 @@ import {
 } from "utils/constants/roles";
 import { TimerManager } from "TimerManager";
 import { sortBy } from "lodash";
+import { comparePostion, isEmptyPosition, isStructure } from "utils/position";
+import { generateRoad } from "utils/construction";
 
 type InternalTerrain = number[][];
 type PathMatrix = {
@@ -128,7 +130,7 @@ const generateRoomMemory = (room: Room) => {
 const generateConstructionSites = (room: Room) => {
   generateContainerConstructionSites(room);
   generateExtensionsCounstructionSites(room);
-  //generateRoads(room); -- move to timer
+  generateDefences(room);
 };
 
 const generateContainerConstructionSites = (room: Room) => {
@@ -178,36 +180,26 @@ const generateExtensionsCounstructionSites = (room: Room) => {
 
     const area = room.lookAtArea(position.y - 1, position.x - 1, position.y + 1, position.x + 1);
 
-    let canBuild = true;
+    let emptySpaces = 0;
+    let neighbors = 0;
 
     for (let y = position.y - 1; y <= position.y + 1; y++) {
       for (let x = position.x - 1; x <= position.x + 1; x++) {
         const array = area[y][x];
 
-        canBuild =
-          canBuild &&
-          array.every(
-            a =>
-              a.type === "creep" ||
-              a.type === "powerCreep" ||
-              a.type === "flag" ||
-              (a.type === "structure" &&
-                a.structure?.structureType === "road" &&
-                x !== position.x &&
-                y !== position.y) ||
-              (a.type === "constructionSite" &&
-                a.constructionSite?.structureType === "road" &&
-                x !== position.x &&
-                y !== position.y) ||
-              (a.type === "terrain" && a.terrain !== "wall") //todo rewrite
-          );
+        const isEmpty = isEmptyPosition(array, true);
+        neighbors += isStructure(array, true) ? 1 : 0;
 
-        if (!visited[x][y] && x > 0 && x < 49 && y > 0 && y < 49) {
+        emptySpaces += isEmpty ? 1 : 0;
+
+        if (!visited[x][y] && x > 1 && x < 48 && y > 1 && y < 48 && isEmpty) {
           queue.push({ x, y });
           visited[x][y] = true;
         }
       }
     }
+
+    const canBuild = isEmptyPosition(area[position.y][position.x], false) && emptySpaces >= 4 && neighbors <= 2;
 
     if (canBuild) {
       room.createConstructionSite(position.x, position.y, STRUCTURE_EXTENSION);
@@ -217,37 +209,9 @@ const generateExtensionsCounstructionSites = (room: Room) => {
   }
 };
 
-const generateRoads = (room: Room) => {
-  const spawn = room.find(FIND_MY_SPAWNS)[0];
-  if (spawn === undefined) return;
-
-  const structures = room.find(FIND_STRUCTURES, {
-    filter: s => s.structureType !== STRUCTURE_RAMPART && s.structureType !== STRUCTURE_SPAWN
-  });
-
-  let usedPathes: PathStep[][] = [];
-
-  for (let structure of structures) {
-    var path = structure.pos.findPathTo(spawn.pos.x, spawn.pos.y, { ignoreCreeps: true });
-
-    usedPathes.push(path);
-  }
-
-  for (let usedPath of usedPathes) {
-    for (let step of usedPath) {
-      room.createConstructionSite(step.x, step.y, STRUCTURE_ROAD);
-    }
-  }
-};
-
-const generateRoad = (room: Room, pos: RoomPosition) => {
-  const spawn = room.find(FIND_MY_SPAWNS)[0];
-  if (spawn === undefined) return;
-
-  let path = pos.findPathTo(spawn.pos.x, spawn.pos.y, { ignoreCreeps: true });
-
-  for (let step of path) {
-    room.createConstructionSite(step.x, step.y, STRUCTURE_ROAD);
+const generateDefences = (room: Room) => {
+  if (!TimerManager.isInQueue("generateDefences")) {
+    TimerManager.push("generateDefences", 1, room.name);
   }
 };
 
@@ -262,10 +226,26 @@ const generateSpawnQueue = (room: Room) => {
   for (let sourceInfo of sortBy(room.memory.sourcesInfo, s => s.order)) {
     const workers = sourceInfo.workerPositions.map<[string, CreepMemory]>(wp => {
       const memory: TypedCreepMemory<
-        [ROLE_HARVESTER, ROLE_SPAWN_TRANSFERER, ROLE_TRANSFERER, ROLE_BUILDER, ROLE_MAINTANANCE, ROLE_UPGRADER]
+        [
+          ROLE_HARVESTER,
+          ROLE_WITHDRAWER,
+          ROLE_SPAWN_TRANSFERER,
+          ROLE_TRANSFERER,
+          ROLE_BUILDER,
+          ROLE_MAINTANANCE,
+          ROLE_UPGRADER
+        ]
       > = {
         room: room.name,
-        roles: [ROLE_HARVESTER, ROLE_SPAWN_TRANSFERER, ROLE_TRANSFERER, ROLE_BUILDER, ROLE_MAINTANANCE, ROLE_UPGRADER],
+        roles: [
+          ROLE_HARVESTER,
+          ROLE_WITHDRAWER,
+          ROLE_SPAWN_TRANSFERER,
+          ROLE_TRANSFERER,
+          ROLE_BUILDER,
+          ROLE_MAINTANANCE,
+          ROLE_UPGRADER
+        ],
         roleMemory: {
           sourceInfo: {
             sourceId: sourceInfo.id,

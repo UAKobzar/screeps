@@ -111,6 +111,7 @@ interface CreepMemory extends TypedCreepMemory<any> {}
 
 type TimerFunctions = {
   spawnCreep: (spanwId: Id<StructureSpawn>, creepName: string) => void;
+  generateDefences: (roomName: string) => void;
 };
 
 interface TimerEvent<K extends keyof TimerFunctions> {

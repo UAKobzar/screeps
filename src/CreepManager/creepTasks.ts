@@ -6,7 +6,8 @@ import {
   ROLE_MAINTANANCE,
   ROLE_TRANSFERER,
   ROLE_SPAWN_TRANSFERER,
-  ROLE_WITHDRAWER
+  ROLE_WITHDRAWER,
+  ROLE_DEFENCE_MAINTENANCE
 } from "utils/constants/roles";
 
 const hasStore = (structure: any): structure is { store: StoreDefinition } => {
@@ -53,7 +54,7 @@ const build: CreepTask = (creep: Creep): boolean => {
 
   if (used_capacity === 0) return false; //can't build
 
-  const buildTarget = creep.pos.findClosestByPath(FIND_CONSTRUCTION_SITES);
+  const buildTarget = creep.pos.findClosestByRange(FIND_CONSTRUCTION_SITES);
   if (!buildTarget) return false; //nothing to build
 
   doOrMove(creep, buildTarget.pos, creep.build, buildTarget);
@@ -95,14 +96,25 @@ const transfer: CreepTask = (creep: Creep): boolean => {
   const memory = (creep.memory as TypedCreepMemory<[ROLE_TRANSFERER, ROLE_WITHDRAWER]>).roleMemory;
   const used_capacity = creep.store.getUsedCapacity(RESOURCE_ENERGY);
 
-  if (memory.job === "withdrawer") return false; // do not transfer we just withdrawed
   if (used_capacity === 0) return false;
 
-  const target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
+  let target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
     filter: structure => {
-      return hasStore(structure) && structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
+      return (
+        structure.structureType === STRUCTURE_TOWER && structure.store.getFreeCapacity(RESOURCE_ENERGY) >= used_capacity
+      );
     }
   });
+
+  if (!target && memory.job === "withdrawer") return false; // do not transfer to container we just withdrawed
+
+  target =
+    target ??
+    creep.pos.findClosestByPath(FIND_STRUCTURES, {
+      filter: structure => {
+        return hasStore(structure) && structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
+      }
+    });
 
   if (!target) return false;
 
@@ -173,6 +185,34 @@ const withdraw: CreepTask = (creep: Creep): boolean => {
   return true;
 };
 
+const maxWallHits = 100_000;
+
+const repairDefences: CreepTask = (creep: Creep): boolean => {
+  const memory = (creep.memory as TypedCreepMemory<[ROLE_DEFENCE_MAINTENANCE]>).roleMemory;
+  const used_capacity = creep.store.getUsedCapacity(RESOURCE_ENERGY);
+
+  if (used_capacity === 0) return false;
+
+  const allWallsAndRamparts = creep.room.find(FIND_STRUCTURES, {
+    filter: s => s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART
+  });
+
+  const minHits = Math.min(...allWallsAndRamparts.map(s => s.hits));
+
+  const repairTarget = creep.pos.findClosestByPath(FIND_STRUCTURES, {
+    filter: s =>
+      (s.structureType === STRUCTURE_WALL || s.structureType === STRUCTURE_RAMPART) &&
+      s.hits === minHits &&
+      s.hits < maxWallHits
+  });
+
+  if (!repairTarget) return false;
+
+  doOrMove(creep, repairTarget.pos, creep.repair, repairTarget);
+
+  return true;
+};
+
 const taskMap: CreepsTaksMap = {
   [ROLE_BUILDER]: build,
   [ROLE_HARVESTER]: harvestEnergy,
@@ -180,7 +220,8 @@ const taskMap: CreepsTaksMap = {
   [ROLE_SPAWN_TRANSFERER]: transferToSpawn,
   [ROLE_TRANSFERER]: transfer,
   [ROLE_UPGRADER]: upgrade,
-  [ROLE_WITHDRAWER]: withdraw
+  [ROLE_WITHDRAWER]: withdraw,
+  [ROLE_DEFENCE_MAINTENANCE]: repairDefences
 };
 
 export default taskMap;

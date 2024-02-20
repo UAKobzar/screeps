@@ -2,6 +2,7 @@ import { ErrorMapper } from "utils/ErrorMapper";
 import RoomsManager from "RoomsManager";
 import { TimerManager } from "TimerManager";
 import CreepManager from "CreepManager";
+import TowerManager from "TowerManager";
 declare global {
   /*
     Example types, expand on these or remove them and add your own.
@@ -31,6 +32,7 @@ export const loop = ErrorMapper.wrapLoop(() => {
   CreepManager.run();
   for (let roomName in Game.rooms) {
     RoomsManager.run(Game.rooms[roomName]);
+    TowerManager.run(Game.rooms[roomName]);
   }
   // Automatically delete memory of missing creeps
   // for (const name in Memory.creeps) {

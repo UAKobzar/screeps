@@ -5,12 +5,13 @@ import {
   ROLE_MAINTANANCE,
   ROLE_TRANSFERER,
   ROLE_SPAWN_TRANSFERER,
-  ROLE_WITHDRAWER
+  ROLE_WITHDRAWER,
+  ROLE_DEFENCE_MAINTENANCE
 } from "utils/constants/roles";
 import { TimerManager } from "TimerManager";
 import { sortBy } from "lodash";
 import { comparePostion, isEmptyPosition, isStructure } from "utils/position";
-import { generateRoad } from "utils/construction";
+import { findBuildPosition, findBuiltStructures, generateRoad } from "utils/construction";
 
 type InternalTerrain = number[][];
 type PathMatrix = {
@@ -100,7 +101,8 @@ const createSourceInfo = (source: Source, spawn: StructureSpawn, terrain: Intern
     },
     order: path.length,
     pos: { x: source.pos.x, y: source.pos.y },
-    workerPositions: entryPoints
+    workerPositions: entryPoints,
+    linkBuilt: false
   };
 };
 
@@ -131,6 +133,8 @@ const generateConstructionSites = (room: Room) => {
   generateContainerConstructionSites(room);
   generateExtensionsCounstructionSites(room);
   generateDefences(room);
+  generateStorageConstructionSite(room);
+  generateLinksConstructionSites(room);
 };
 
 const generateContainerConstructionSites = (room: Room) => {
@@ -165,47 +169,11 @@ const generateExtensionsCounstructionSites = (room: Room) => {
 
   if (extensionsToBuild === 0) return;
 
-  const spawn = room.find(FIND_MY_SPAWNS)[0];
+  const position = findBuildPosition(room);
 
-  const visited: boolean[][] = Array.from({ length: 50 }, e => Array(50).fill(false));
-
-  const queue: Position[] = [];
-  const buildPositions: Position[] = [];
-
-  queue.push({ x: spawn.pos.x, y: spawn.pos.y });
-  visited[spawn.pos.x][spawn.pos.y] = true;
-
-  while (extensionsToBuild > 0 && queue.length > 0) {
-    const position = queue.shift()!;
-
-    const area = room.lookAtArea(position.y - 1, position.x - 1, position.y + 1, position.x + 1);
-
-    let emptySpaces = 0;
-    let neighbors = 0;
-
-    for (let y = position.y - 1; y <= position.y + 1; y++) {
-      for (let x = position.x - 1; x <= position.x + 1; x++) {
-        const array = area[y][x];
-
-        const isEmpty = isEmptyPosition(array, true);
-        neighbors += isStructure(array, true) ? 1 : 0;
-
-        emptySpaces += isEmpty ? 1 : 0;
-
-        if (!visited[x][y] && x > 1 && x < 48 && y > 1 && y < 48 && isEmpty) {
-          queue.push({ x, y });
-          visited[x][y] = true;
-        }
-      }
-    }
-
-    const canBuild = isEmptyPosition(area[position.y][position.x], false) && emptySpaces >= 4 && neighbors <= 2;
-
-    if (canBuild) {
-      room.createConstructionSite(position.x, position.y, STRUCTURE_EXTENSION);
-      generateRoad(room, new RoomPosition(position.x, position.y, room.name));
-      break; // one per tick for now
-    }
+  if (position) {
+    room.createConstructionSite(position.x, position.y, STRUCTURE_EXTENSION);
+    generateRoad(room, new RoomPosition(position.x, position.y, room.name));
   }
 };
 
@@ -215,11 +183,69 @@ const generateDefences = (room: Room) => {
   }
 };
 
-const generateSpawnQueue = (room: Room) => {
-  if (room.memory.generated == false || room.memory.sourcesInfo === undefined || room.memory.spawnQueueCreated === true)
-    return;
-  const spawn = room.find(FIND_MY_SPAWNS)[0];
-  if (spawn === undefined) return;
+const generateStorageConstructionSite = (room: Room) => {
+  if (!room.controller?.level || room.controller.level < 4 || room.storage) return;
+
+  const isBuilding = room.find(FIND_MY_CONSTRUCTION_SITES, { filter: s => s.structureType === STRUCTURE_STORAGE });
+
+  if (isBuilding) return;
+
+  const position = findBuildPosition(room);
+
+  if (position) {
+    room.createConstructionSite(position.x, position.y, STRUCTURE_STORAGE);
+    generateRoad(room, new RoomPosition(position.x, position.y, room.name));
+  }
+};
+
+const generateLinksConstructionSites = (room: Room) => {
+  if (!room.controller?.level || room.controller.level < 5 || !room.storage || !room.memory.sourcesInfo) return;
+
+  const totalLinks = room.controller.level === 8 ? 6 : room.controller.level - 3;
+  const builtLinks = findBuiltStructures(room, STRUCTURE_LINK);
+
+  const linksToBuild = totalLinks - builtLinks.length;
+
+  if (linksToBuild <= 0) return;
+
+  if (!room.memory.recieverLinkId) {
+    if (builtLinks.length === 1) {
+      const builtLink = room.find(FIND_STRUCTURES, { filter: s => s.structureType === STRUCTURE_LINK });
+
+      if (builtLink.length === 0) return; // still under construction
+
+      room.memory.recieverLinkId = builtLink[0].id as Id<StructureLink>;
+    } else {
+      const position = findBuildPosition(room, room.storage.pos);
+
+      if (position) {
+        room.createConstructionSite(position.x, position.y, STRUCTURE_LINK);
+        generateRoad(room, new RoomPosition(position.x, position.y, room.name));
+      }
+    }
+  } else {
+    const sourcesInfoArray = [...room.memory.sourcesInfo];
+    sourcesInfoArray.sort((s1, s2) => s2.order - s1.order);
+
+    for (let si of sourcesInfoArray) {
+      let lookAt = room.lookForAt(LOOK_STRUCTURES, si.containerPosition.x, si.containerPosition.y);
+
+      if (si.linkBuilt) {
+        if (lookAt.some(s => s.structureType === STRUCTURE_LINK)) continue;
+      } else {
+        for (let container of lookAt.filter(s => s.structureType === STRUCTURE_CONTAINER)) {
+          container.destroy();
+        }
+      }
+
+      room.createConstructionSite(si.containerPosition.x, si.containerPosition.y, STRUCTURE_LINK);
+      generateRoad(room, new RoomPosition(si.containerPosition.x, si.containerPosition.y, room.name));
+    }
+  }
+};
+
+const getRoomCreeps = (room: Room) => {
+  if (room.memory.generated == false || room.memory.sourcesInfo === undefined) return [];
 
   let queue: [string, CreepMemory][] = [];
 
@@ -233,7 +259,7 @@ const generateSpawnQueue = (room: Room) => {
           ROLE_TRANSFERER,
           ROLE_BUILDER,
           ROLE_MAINTANANCE,
-          ROLE_UPGRADER
+          ROLE_DEFENCE_MAINTENANCE
         ]
       > = {
         room: room.name,
@@ -244,7 +270,7 @@ const generateSpawnQueue = (room: Room) => {
           ROLE_TRANSFERER,
           ROLE_BUILDER,
           ROLE_MAINTANANCE,
-          ROLE_UPGRADER
+          ROLE_DEFENCE_MAINTENANCE
         ],
         roleMemory: {
           sourceInfo: {
@@ -256,11 +282,11 @@ const generateSpawnQueue = (room: Room) => {
       };
       return [`${room.name}_worker_${wp.x}:${wp.y}`, memory];
     });
-    const upgrader: [string, TypedCreepMemory<[ROLE_WITHDRAWER, ROLE_UPGRADER]>] = [
+    const upgrader: [string, TypedCreepMemory<[ROLE_WITHDRAWER, ROLE_SPAWN_TRANSFERER, ROLE_UPGRADER]>] = [
       `${room.name}_upgrader_${sourceInfo.containerPosition.x}:${sourceInfo.containerPosition.y}`,
       {
         room: room.name,
-        roles: [ROLE_WITHDRAWER, ROLE_UPGRADER],
+        roles: [ROLE_WITHDRAWER, ROLE_SPAWN_TRANSFERER, ROLE_UPGRADER],
         roleMemory: {
           job: ROLE_WITHDRAWER
         }
@@ -269,6 +295,16 @@ const generateSpawnQueue = (room: Room) => {
 
     queue = [...queue, ...workers, upgrader];
   }
+  return queue;
+};
+
+const generateSpawnQueue = (room: Room) => {
+  if (room.memory.spawnQueueCreated === true) return;
+
+  const spawn = room.find(FIND_MY_SPAWNS)[0];
+  if (spawn === undefined) return;
+
+  const queue = getRoomCreeps(room);
 
   let tickdelay = 1;
 
@@ -280,6 +316,21 @@ const generateSpawnQueue = (room: Room) => {
   room.memory.spawnQueueCreated = true;
 };
 
+const regenerateCreepsMemory = (room: Room) => {
+  if (!room.memory.regenerateCreepsMemory) return;
+
+  const spawn = room.find(FIND_MY_SPAWNS)[0];
+  if (spawn === undefined) return;
+
+  const queue = getRoomCreeps(room);
+
+  for (let creep of queue) {
+    Memory.creeps[creep[0]] = creep[1];
+  }
+
+  room.memory.regenerateCreepsMemory = false;
+};
+
 const RoomsManager = {
   run: (room: Room) => {
     if (room.memory.generated !== true && room.memory.generating !== true) {
@@ -287,6 +338,7 @@ const RoomsManager = {
     }
     generateConstructionSites(room);
     generateSpawnQueue(room);
+    regenerateCreepsMemory(room);
   }
 };
 

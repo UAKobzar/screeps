@@ -7,6 +7,7 @@ import {
   ROLE_TRANSFERER,
   ROLE_SPAWN_TRANSFERER,
   ROLE_WITHDRAWER,
+  ROLE_LINK_WITHDRAWER,
   ROLE_DEFENCE_MAINTENANCE
 } from "utils/constants/roles";
 
@@ -110,6 +111,7 @@ const transfer: CreepTask = (creep: Creep): boolean => {
 
   target =
     target ??
+    creep.room.storage ??
     creep.pos.findClosestByPath(FIND_STRUCTURES, {
       filter: structure => {
         return hasStore(structure) && structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
@@ -174,9 +176,31 @@ const withdraw: CreepTask = (creep: Creep): boolean => {
     target ||
     creep.pos.findClosestByPath(FIND_STRUCTURES, {
       filter: structure => {
-        return structure.structureType == STRUCTURE_CONTAINER && structure.store.getUsedCapacity(RESOURCE_ENERGY) > 0;
+        return (
+          (structure.structureType == STRUCTURE_CONTAINER || structure.structureType === STRUCTURE_STORAGE) &&
+          structure.store.getUsedCapacity(RESOURCE_ENERGY) > 0
+        );
       }
     });
+
+  if (!target) return false;
+
+  doOrMove(creep, target.pos, creep.withdraw, target, RESOURCE_ENERGY);
+
+  return true;
+};
+
+const withdrawRecieverLink: CreepTask = (creep: Creep): boolean => {
+  const memory = (creep.memory as TypedCreepMemory<[ROLE_LINK_WITHDRAWER]>).roleMemory;
+  const free_capacity = creep.store.getFreeCapacity(RESOURCE_ENERGY);
+  const used_capacity = creep.store.getUsedCapacity(RESOURCE_ENERGY);
+
+  if (memory.job === "linkWithdrawer" && free_capacity === 0) return false; //can't withdraw more
+  if (memory.job !== "linkWithdrawer" && used_capacity > 0) return false; //doing something else
+
+  if (!creep.room.memory.recieverLinkId) return false;
+
+  const target = Game.getObjectById(creep.room.memory.recieverLinkId);
 
   if (!target) return false;
 
@@ -221,6 +245,7 @@ const taskMap: CreepsTaksMap = {
   [ROLE_TRANSFERER]: transfer,
   [ROLE_UPGRADER]: upgrade,
   [ROLE_WITHDRAWER]: withdraw,
+  [ROLE_LINK_WITHDRAWER]: withdrawRecieverLink,
   [ROLE_DEFENCE_MAINTENANCE]: repairDefences
 };
 

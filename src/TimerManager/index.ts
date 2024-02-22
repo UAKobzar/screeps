@@ -40,6 +40,16 @@ export const TimerManager = {
     return Memory.timer.queue.findIndex(t => t.functionName === functionName) !== -1;
   },
 
+  removeFromQueue: (filter: ((event: TimerEvent<keyof TimerFunctions>) => boolean) | undefined = undefined) => {
+    let newQueue: TimerEvent<keyof TimerFunctions>[] = [];
+
+    if (filter !== undefined) {
+      newQueue = [...Memory.timer.queue.filter(filter)];
+    }
+
+    Memory.timer.queue = newQueue;
+  },
+
   run: () => {
     if (Memory.timer === undefined) {
       Memory.timer = {

@@ -6,8 +6,11 @@ import {
   ROLE_TRANSFERER,
   ROLE_SPAWN_TRANSFERER,
   ROLE_WITHDRAWER,
+  ROLE_LINK_WITHDRAWER,
   ROLE_DEFENCE_MAINTENANCE
 } from "utils/constants/roles";
+
+import { BODY_BUILDER, BODY_HARVESTER, BODY_MOVER, BODY_UPGRADER } from "utils/constants/bodies";
 import { TimerManager } from "TimerManager";
 import { sortBy } from "lodash";
 import { comparePostion, isEmptyPosition, isStructure } from "utils/position";
@@ -141,7 +144,7 @@ const generateContainerConstructionSites = (room: Room) => {
   if (!room.memory.generated || !room.memory.sourcesInfo) return;
   let sites = room.find(FIND_MY_CONSTRUCTION_SITES);
   let structures = room.find(FIND_STRUCTURES);
-  for (let si of room.memory.sourcesInfo) {
+  for (let si of room.memory.sourcesInfo.filter(s => s.linkBuilt !== true)) {
     var isBuilt =
       sites.some(s => s.pos.x == si.containerPosition.x && s.pos.y == si.containerPosition.y) ||
       structures.some(s => s.pos.x == si.containerPosition.x && s.pos.y == si.containerPosition.y);
@@ -240,6 +243,8 @@ const generateLinksConstructionSites = (room: Room) => {
 
       room.createConstructionSite(si.containerPosition.x, si.containerPosition.y, STRUCTURE_LINK);
       generateRoad(room, new RoomPosition(si.containerPosition.x, si.containerPosition.y, room.name));
+
+      si.linkBuilt = true;
     }
   }
 };
@@ -250,50 +255,93 @@ const getRoomCreeps = (room: Room) => {
   let queue: [string, CreepMemory][] = [];
 
   for (let sourceInfo of sortBy(room.memory.sourcesInfo, s => s.order)) {
-    const workers = sourceInfo.workerPositions.map<[string, CreepMemory]>(wp => {
-      const memory: TypedCreepMemory<
-        [
-          ROLE_HARVESTER,
-          ROLE_WITHDRAWER,
-          ROLE_SPAWN_TRANSFERER,
-          ROLE_TRANSFERER,
-          ROLE_BUILDER,
-          ROLE_MAINTANANCE,
-          ROLE_DEFENCE_MAINTENANCE
-        ]
-      > = {
+    const harvester: [string, TypedCreepMemory<[ROLE_HARVESTER, ROLE_TRANSFERER]>] = [
+      `${room.name}_worker_${sourceInfo.pos.x}:${sourceInfo.pos.y}`,
+      {
         room: room.name,
-        roles: [
-          ROLE_HARVESTER,
-          ROLE_WITHDRAWER,
-          ROLE_SPAWN_TRANSFERER,
-          ROLE_TRANSFERER,
-          ROLE_BUILDER,
-          ROLE_MAINTANANCE,
-          ROLE_DEFENCE_MAINTENANCE
-        ],
+        roles: [ROLE_HARVESTER, ROLE_TRANSFERER],
         roleMemory: {
           sourceInfo: {
             sourceId: sourceInfo.id,
-            harvestingPosition: wp
+            harvestingPosition: sourceInfo.pos
           },
           job: ROLE_HARVESTER
-        }
-      };
-      return [`${room.name}_worker_${wp.x}:${wp.y}`, memory];
-    });
-    const upgrader: [string, TypedCreepMemory<[ROLE_WITHDRAWER, ROLE_SPAWN_TRANSFERER, ROLE_UPGRADER]>] = [
+        },
+        bodyType: "harvester"
+      }
+    ];
+    const upgrader: [
+      string,
+      TypedCreepMemory<[ROLE_WITHDRAWER, ROLE_HARVESTER, ROLE_SPAWN_TRANSFERER, ROLE_UPGRADER]>
+    ] = [
       `${room.name}_upgrader_${sourceInfo.containerPosition.x}:${sourceInfo.containerPosition.y}`,
       {
         room: room.name,
-        roles: [ROLE_WITHDRAWER, ROLE_SPAWN_TRANSFERER, ROLE_UPGRADER],
+        roles: [ROLE_WITHDRAWER, ROLE_HARVESTER, ROLE_SPAWN_TRANSFERER, ROLE_UPGRADER],
         roleMemory: {
-          job: ROLE_WITHDRAWER
-        }
+          job: ROLE_WITHDRAWER,
+          sourceInfo: {
+            sourceId: sourceInfo.id,
+            harvestingPosition: sourceInfo.pos
+          }
+        },
+        bodyType: BODY_UPGRADER
       }
     ];
 
-    queue = [...queue, ...workers, upgrader];
+    const builder: [
+      string,
+      TypedCreepMemory<
+        [
+          ROLE_WITHDRAWER,
+          ROLE_HARVESTER,
+          ROLE_SPAWN_TRANSFERER,
+          ROLE_BUILDER,
+          ROLE_MAINTANANCE,
+          ROLE_DEFENCE_MAINTENANCE,
+          ROLE_UPGRADER
+        ]
+      >
+    ] = [
+      `${room.name}_upgrader_${sourceInfo.containerPosition.x}:${sourceInfo.containerPosition.y}`,
+      {
+        room: room.name,
+        roles: [
+          ROLE_WITHDRAWER,
+          ROLE_HARVESTER,
+          ROLE_SPAWN_TRANSFERER,
+          ROLE_BUILDER,
+          ROLE_MAINTANANCE,
+          ROLE_DEFENCE_MAINTENANCE,
+          ROLE_UPGRADER
+        ],
+        roleMemory: {
+          job: ROLE_WITHDRAWER,
+          sourceInfo: {
+            sourceId: sourceInfo.id,
+            harvestingPosition: sourceInfo.pos
+          }
+        },
+        bodyType: BODY_BUILDER
+      }
+    ];
+
+    const mover: [
+      string,
+      TypedCreepMemory<[ROLE_LINK_WITHDRAWER, ROLE_WITHDRAWER, ROLE_SPAWN_TRANSFERER, ROLE_TRANSFERER]>
+    ] = [
+      `${room.name}_upgrader_${sourceInfo.containerPosition.x}:${sourceInfo.containerPosition.y}`,
+      {
+        room: room.name,
+        roles: [ROLE_LINK_WITHDRAWER, ROLE_WITHDRAWER, ROLE_SPAWN_TRANSFERER, ROLE_TRANSFERER],
+        roleMemory: {
+          job: ROLE_LINK_WITHDRAWER
+        },
+        bodyType: BODY_MOVER
+      }
+    ];
+
+    queue = [...queue, harvester, builder, upgrader, mover];
   }
   return queue;
 };

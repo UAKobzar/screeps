@@ -39,13 +39,8 @@ const harvestEnergy: CreepTask = (creep: Creep): boolean => {
 
   if (source.energy === 0) return false; // nothing to gather
 
-  const isOnPosition = comparePostion(creep.pos, memory.sourceInfo.harvestingPosition);
-  if (isOnPosition) {
-    const source = Game.getObjectById(memory.sourceInfo.sourceId)!;
-    creep.harvest(source);
-  } else {
-    creep.moveTo(memory.sourceInfo.harvestingPosition.x, memory.sourceInfo.harvestingPosition.y);
-  }
+  doOrMove(creep, source.pos, creep.harvest, source);
+
   return true;
 };
 

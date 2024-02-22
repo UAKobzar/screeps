@@ -303,7 +303,7 @@ const getRoomCreeps = (room: Room) => {
         ]
       >
     ] = [
-      `${room.name}_upgrader_${sourceInfo.containerPosition.x}:${sourceInfo.containerPosition.y}`,
+      `${room.name}_builder_${sourceInfo.containerPosition.x}:${sourceInfo.containerPosition.y}`,
       {
         room: room.name,
         roles: [
@@ -330,7 +330,7 @@ const getRoomCreeps = (room: Room) => {
       string,
       TypedCreepMemory<[ROLE_LINK_WITHDRAWER, ROLE_WITHDRAWER, ROLE_SPAWN_TRANSFERER, ROLE_TRANSFERER]>
     ] = [
-      `${room.name}_upgrader_${sourceInfo.containerPosition.x}:${sourceInfo.containerPosition.y}`,
+      `${room.name}_mover_${sourceInfo.containerPosition.x}:${sourceInfo.containerPosition.y}`,
       {
         room: room.name,
         roles: [ROLE_LINK_WITHDRAWER, ROLE_WITHDRAWER, ROLE_SPAWN_TRANSFERER, ROLE_TRANSFERER],

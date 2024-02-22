@@ -1,4 +1,4 @@
-import { createDefaultBuilder, createDefaultWorker } from "CreepManager/utils";
+import { createDefaultHarvester, createDefaultMover, createDefaultWorker } from "CreepManager/utils";
 import { TimerManager } from "TimerManager";
 import { findBuildPosition, findBuiltStructures, generateRoad } from "utils/construction";
 import { comparePostion } from "utils/position";
@@ -14,10 +14,12 @@ const Functions: TimerFunctions = {
     let energyCapacity = Memory.recoveryMode ? spawn?.room.energyAvailable : spawn?.room.energyCapacityAvailable;
     energyCapacity = energyCapacity ?? 0;
 
-    if (energyCapacity < 300) energyCapacity = 300;
-    if (energyCapacity > 1400) energyCapacity = 1400;
-
-    const parts = createDefaultWorker(energyCapacity);
+    const parts =
+      Memory.creeps[creepName].bodyType === "harvester"
+        ? createDefaultHarvester(energyCapacity)
+        : Memory.creeps[creepName].bodyType === "mover"
+        ? createDefaultMover(energyCapacity)
+        : createDefaultWorker(energyCapacity);
 
     const result = spawn?.spawnCreep(parts, creepName);
     if (result !== OK) {

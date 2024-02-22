@@ -33,6 +33,8 @@ export const getContainer = (
 };
 
 export const createDefaultWorker = (energyCapacity: number): BodyPartConstant[] => {
+  energyCapacity = Math.max(Math.min(energyCapacity, 1400), 200);
+
   const batchCost = BODYPART_COST.work + BODYPART_COST.carry + BODYPART_COST.move;
 
   const totalAmountOfBatches = Math.floor(energyCapacity / batchCost);
@@ -46,25 +48,34 @@ export const createDefaultWorker = (energyCapacity: number): BodyPartConstant[] 
   return parts;
 };
 
-export const createDefaultBuilder = (energyCapacity: number): BodyPartConstant[] => {
-  if (energyCapacity < 350) {
-    const moveCarryCapacity = energyCapacity - BODYPART_COST.work;
-    const moveCarryCount = Math.floor(moveCarryCapacity / (BODYPART_COST.move + BODYPART_COST.carry));
+export const createDefaultHarvester = (energyCapacity: number): BodyPartConstant[] => {
+  energyCapacity = Math.max(Math.min(energyCapacity, 1450), 200);
 
-    const parts = [...Array(moveCarryCount).fill(MOVE), ...Array(moveCarryCount).fill(CARRY), WORK];
+  const workMoveCarryCost = BODYPART_COST.work + BODYPART_COST.carry + BODYPART_COST.move;
 
-    return parts;
-  } else {
-    const cost = BODYPART_COST.move * 2 + BODYPART_COST.carry * 3 + BODYPART_COST.work;
+  energyCapacity -= workMoveCarryCost;
 
-    let totalAmountOfBatches = Math.floor(energyCapacity / cost);
+  if (energyCapacity < 0) return [];
 
-    const parts = [
-      ...Array(totalAmountOfBatches * 2).fill(MOVE),
-      ...Array(totalAmountOfBatches * 3).fill(CARRY),
-      ...Array(totalAmountOfBatches).fill(WORK)
-    ];
+  const workCount = Math.min(Math.floor(energyCapacity / BODYPART_COST.work), 5) + 1;
 
-    return parts;
-  }
+  energyCapacity -= (workCount - 1) * BODYPART_COST.work;
+
+  const carryCount = Math.min(Math.floor(energyCapacity / BODYPART_COST.carry), 15) + 1;
+
+  const parts = [...Array(workCount).fill(WORK), ...Array(carryCount).fill(CARRY), MOVE];
+
+  return parts;
+};
+
+export const createDefaultMover = (energyCapacity: number): BodyPartConstant[] => {
+  energyCapacity = Math.max(Math.min(energyCapacity, 1200), 100);
+
+  const batchCost = BODYPART_COST.carry + BODYPART_COST.move;
+
+  const totalAmountOfBatches = Math.floor(energyCapacity / batchCost);
+
+  const parts = [...Array(totalAmountOfBatches).fill(MOVE), ...Array(totalAmountOfBatches).fill(CARRY)];
+
+  return parts;
 };

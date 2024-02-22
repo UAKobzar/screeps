@@ -15,7 +15,16 @@ rcrrrc
 rrcrcr
 rccrcc
 rrcrcr
-rcrcrc`;
+rcrcrc`
+  .split("\n")
+  .map(s => s.split(""));
+
+const isBuildingPositionByPattern = (position: Position) => {
+  const y = position.y % buildingPattern.length;
+  const x = position.x % buildingPattern[y].length;
+
+  return buildingPattern[y][x] === "r";
+};
 
 export const generateRoad = (room: Room, pos: RoomPosition) => {
   const spawn = room.find(FIND_MY_SPAWNS)[0];
@@ -44,30 +53,27 @@ export const findBuildPosition = (room: Room, closeTo?: Position): Position | un
     const position = queue.shift()!;
 
     const area = room.lookAtArea(position.y - 1, position.x - 1, position.y + 1, position.x + 1);
+    const isNearSpecial = Object.keys(area).some(y =>
+      Object.keys(area[Number(y)]).some(x =>
+        area[Number(y)][Number(x)].some(
+          t => t.type === "source" || t.type === "mineral" || t.structure?.structureType === "controller"
+        )
+      )
+    );
 
-    let emptySpaces = 0;
-    let neighbors = 0;
+    const isBuildPosition = isBuildingPositionByPattern(position);
 
-    for (let y = position.y - 1; y <= position.y + 1; y++) {
-      for (let x = position.x - 1; x <= position.x + 1; x++) {
-        const array = area[y][x];
-
-        const isEmpty = isEmptyPosition(array, true);
-        neighbors += isStructure(array, true) ? 1 : 0;
-
-        emptySpaces += isEmpty ? 1 : 0;
-
-        if (!visited[x][y] && x > 1 && x < 48 && y > 1 && y < 48 && isEmpty) {
-          queue.push({ x, y });
-          visited[x][y] = true;
-        }
-      }
-    }
-
-    const canBuild = isEmptyPosition(area[position.y][position.x], false) && emptySpaces >= 4 && neighbors <= 2;
+    const canBuild = isBuildPosition && !isNearSpecial && isEmptyPosition(area[position.y][position.x], false);
 
     if (canBuild) {
       return position;
+    } else {
+      for (let x = position.x - 1; x <= position.x + 1; x++)
+        for (let y = position.y - 1; y <= position.y + 1; y++)
+          if (!visited[x][y]) {
+            queue.push({ x, y });
+            visited[x][y] = true;
+          }
     }
   }
 

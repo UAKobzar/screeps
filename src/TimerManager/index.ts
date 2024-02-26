@@ -36,8 +36,8 @@ export const TimerManager = {
     Memory.timer.queue = pushAtIndex(timerQueue, event, index);
   },
 
-  isInQueue: <K extends keyof TimerFunctions>(functionName: K) => {
-    return Memory.timer.queue.findIndex(t => t.functionName === functionName) !== -1;
+  isInQueue: (predicate: (value: TimerEvent<keyof TimerFunctions>) => boolean) => {
+    return Memory.timer.queue.findIndex(predicate) !== -1;
   },
 
   removeFromQueue: (filter: ((event: TimerEvent<keyof TimerFunctions>) => boolean) | undefined = undefined) => {

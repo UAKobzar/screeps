@@ -43,7 +43,7 @@ type Body = BODY_HARVESTER | BODY_UPGRADER | BODY_MOVER | BODY_BUILDER;
 
 interface HarvesterSourceInfo {
   harvestingPosition: Position;
-  sourceId: Id<Source>;
+  sourceId: Id<Source> | Id<Mineral>;
 }
 
 type HarvesterMemory = {
@@ -73,6 +73,7 @@ type LinkWithdrawerMemory = {
 
 type TransfererMemory = {
   job: ROLE_TRANSFERER;
+  priorityTargets: StructureConstant[] | undefined;
 };
 
 type SpawnTransfererMemory = {

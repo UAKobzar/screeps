@@ -15,6 +15,7 @@ const CreepManager = {
         for (let role of creep.memory.roles) {
           let typedRole = role as Role;
           if (doJob(creep, typedRole)) {
+            creep.say(typedRole);
             creep.memory.roleMemory.job = typedRole;
             break;
           }

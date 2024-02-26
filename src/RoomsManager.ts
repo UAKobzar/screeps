@@ -138,6 +138,8 @@ const generateConstructionSites = (room: Room) => {
   generateDefences(room);
   generateStorageConstructionSite(room);
   generateLinksConstructionSites(room);
+  generateExtractor(room);
+  generateTerminal(room);
 };
 
 const generateContainerConstructionSites = (room: Room) => {
@@ -181,7 +183,7 @@ const generateExtensionsCounstructionSites = (room: Room) => {
 };
 
 const generateDefences = (room: Room) => {
-  if (!TimerManager.isInQueue("generateDefences")) {
+  if (!TimerManager.isInQueue(f => f.functionName === "generateDefences")) {
     TimerManager.push("generateDefences", 1, room.name);
   }
 };
@@ -222,8 +224,7 @@ const generateLinksConstructionSites = (room: Room) => {
       const position = findBuildPosition(room, room.storage.pos);
 
       if (position) {
-        room.createConstructionSite(position.x, position.y, STRUCTURE_LINK);
-        generateRoad(room, new RoomPosition(position.x, position.y, room.name));
+        generateConstructionSite(room, STRUCTURE_LINK, position);
       }
     }
   } else {
@@ -241,12 +242,52 @@ const generateLinksConstructionSites = (room: Room) => {
         }
       }
 
-      room.createConstructionSite(si.containerPosition.x, si.containerPosition.y, STRUCTURE_LINK);
-      generateRoad(room, new RoomPosition(si.containerPosition.x, si.containerPosition.y, room.name));
+      generateConstructionSite(room, STRUCTURE_LINK, si.containerPosition);
 
       si.linkBuilt = true;
+
+      room.memory.regenerateCreepsMemory = true;
     }
   }
+};
+
+const generateExtractor = (room: Room) => {
+  const controllerLevel = room.controller?.level ?? 0;
+  if (controllerLevel < 6) return;
+
+  const isBuilt = findBuiltStructures(room, STRUCTURE_EXTRACTOR).length > 0;
+
+  if (isBuilt) return;
+
+  const spawn = room.find(FIND_MY_SPAWNS)[0];
+  if (spawn === undefined) return;
+
+  const mineral = room.find(FIND_MINERALS)[0];
+
+  generateConstructionSite(room, STRUCTURE_EXTRACTOR, mineral.pos);
+
+  room.memory.regenerateSpawnQueue = true;
+};
+
+const generateTerminal = (room: Room) => {
+  const controllerLevel = room.controller?.level ?? 0;
+  if (controllerLevel < 6) return;
+
+  const isBuilt = findBuiltStructures(room, STRUCTURE_TERMINAL).length > 0;
+
+  if (isBuilt) return;
+
+  generateConstructionSite(room, STRUCTURE_TERMINAL);
+};
+
+const generateConstructionSite = (room: Room, type: BuildableStructureConstant, position?: Position) => {
+  position = position ?? findBuildPosition(room);
+
+  if (!position) {
+    return;
+  }
+  room.createConstructionSite(position.x, position.y, type);
+  generateRoad(room, new RoomPosition(position.x, position.y, room.name));
 };
 
 const getRoomCreeps = (room: Room) => {
@@ -265,6 +306,9 @@ const getRoomCreeps = (room: Room) => {
             sourceId: sourceInfo.id,
             harvestingPosition: sourceInfo.pos
           },
+          priorityTargets: sourceInfo.linkBuilt
+            ? [STRUCTURE_LINK, STRUCTURE_SPAWN, STRUCTURE_TOWER]
+            : [STRUCTURE_CONTAINER, STRUCTURE_SPAWN, STRUCTURE_TOWER],
           job: ROLE_HARVESTER
         },
         bodyType: "harvester"
@@ -326,16 +370,20 @@ const getRoomCreeps = (room: Room) => {
       }
     ];
 
-    const mover: [
-      string,
-      TypedCreepMemory<[ROLE_LINK_WITHDRAWER, ROLE_WITHDRAWER, ROLE_SPAWN_TRANSFERER, ROLE_TRANSFERER]>
-    ] = [
+    const mover: [string, TypedCreepMemory<[ROLE_LINK_WITHDRAWER, ROLE_WITHDRAWER, ROLE_TRANSFERER]>] = [
       `${room.name}_mover_${sourceInfo.containerPosition.x}:${sourceInfo.containerPosition.y}`,
       {
         room: room.name,
-        roles: [ROLE_LINK_WITHDRAWER, ROLE_WITHDRAWER, ROLE_SPAWN_TRANSFERER, ROLE_TRANSFERER],
+        roles: [ROLE_LINK_WITHDRAWER, ROLE_WITHDRAWER, ROLE_TRANSFERER],
         roleMemory: {
-          job: ROLE_LINK_WITHDRAWER
+          job: ROLE_LINK_WITHDRAWER,
+          priorityTargets: [
+            STRUCTURE_EXTENSION,
+            STRUCTURE_SPAWN,
+            STRUCTURE_TOWER,
+            STRUCTURE_TERMINAL,
+            STRUCTURE_STORAGE
+          ]
         },
         bodyType: BODY_MOVER
       }
@@ -343,6 +391,29 @@ const getRoomCreeps = (room: Room) => {
 
     queue = [...queue, harvester, builder, upgrader, mover];
   }
+
+  if (findBuiltStructures(room, STRUCTURE_EXTRACTOR).length > 0) {
+    const mineral = room.find(FIND_MINERALS)[0];
+    const mineralHarvester: [string, TypedCreepMemory<[ROLE_HARVESTER, ROLE_TRANSFERER]>] = [
+      `${room.name}_extractor_${mineral.pos.x}:${mineral.pos.y}`,
+      {
+        room: room.name,
+        roles: [ROLE_HARVESTER, ROLE_TRANSFERER],
+        roleMemory: {
+          job: ROLE_HARVESTER,
+          priorityTargets: [STRUCTURE_TERMINAL, STRUCTURE_STORAGE],
+          sourceInfo: {
+            harvestingPosition: mineral.pos,
+            sourceId: mineral.id
+          }
+        },
+        bodyType: BODY_BUILDER
+      }
+    ];
+
+    queue.push(mineralHarvester);
+  }
+
   return queue;
 };
 
@@ -379,6 +450,23 @@ const regenerateCreepsMemory = (room: Room) => {
   room.memory.regenerateCreepsMemory = false;
 };
 
+const regenerateSpawnQueue = (room: Room) => {
+  if (!room.memory.regenerateSpawnQueue) return;
+
+  const spawn = room.find(FIND_MY_SPAWNS)[0];
+  if (spawn === undefined) return;
+
+  const queue = getRoomCreeps(room);
+
+  for (let creep of queue) {
+    if (!TimerManager.isInQueue(f => f.functionName === "spawnCreep" && f.params[1] === creep[0]))
+      TimerManager.push("spawnCreep", 1, spawn.id, creep[0]);
+    Memory.creeps[creep[0]] = creep[1];
+  }
+
+  room.memory.regenerateSpawnQueue = false;
+};
+
 const RoomsManager = {
   run: (room: Room) => {
     if (room.memory.generated !== true && room.memory.generating !== true) {
@@ -387,6 +475,7 @@ const RoomsManager = {
     generateConstructionSites(room);
     generateSpawnQueue(room);
     regenerateCreepsMemory(room);
+    regenerateSpawnQueue(room);
   }
 };
 

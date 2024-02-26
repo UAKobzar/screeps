@@ -11,7 +11,9 @@ export default {
 
     const otherLinks = room.find(FIND_STRUCTURES, {
       filter: s =>
-        s.structureType === STRUCTURE_LINK && s.id !== room.memory.recieverLinkId && s.store.getFreeCapacity() === 0
+        s.structureType === STRUCTURE_LINK &&
+        s.id !== room.memory.recieverLinkId &&
+        s.store.getUsedCapacity(RESOURCE_ENERGY) > 0
     });
 
     if (otherLinks.length === 0) return;

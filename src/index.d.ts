@@ -20,6 +20,7 @@ interface RoomMemory {
   recieverLinkId?: Id<StructureLink>;
   spawnQueueCreated?: boolean;
   regenerateCreepsMemory?: boolean;
+  regenerateSpawnQueue?: boolean;
 }
 
 type RoleMemory<T extends Role[], B = T extends [any, ...infer U] ? U : never> = T extends { length: 0 }

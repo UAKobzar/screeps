@@ -1,4 +1,4 @@
-import { isEmptyPosition, isStructure } from "./position";
+import { comparePostion, isEmptyPosition, isStructure } from "./position";
 
 const buildingPattern = `rcrcrc
 rrcrcr
@@ -23,12 +23,19 @@ const isBuildingPositionByPattern = (position: Position) => {
   const y = position.y % buildingPattern.length;
   const x = position.x % buildingPattern[y].length;
 
-  return buildingPattern[y][x] === "r";
+  return buildingPattern[y][x] === "c";
 };
 
 export const generateRoad = (room: Room, pos: RoomPosition) => {
   const spawn = room.find(FIND_MY_SPAWNS)[0];
   if (spawn === undefined) return;
+
+  for (let x = pos.x - 1; x <= pos.x + 1; x++)
+    for (let y = pos.y - 1; y <= pos.y + 1; y++) {
+      if (!comparePostion(pos, { x, y }) && !isBuildingPositionByPattern(pos)) {
+        room.createConstructionSite(x, y, STRUCTURE_ROAD);
+      }
+    }
 
   let path = pos.findPathTo(spawn.pos.x, spawn.pos.y, { ignoreCreeps: true });
 
@@ -70,7 +77,7 @@ export const findBuildPosition = (room: Room, closeTo?: Position): Position | un
     } else {
       for (let x = position.x - 1; x <= position.x + 1; x++)
         for (let y = position.y - 1; y <= position.y + 1; y++)
-          if (!visited[x][y]) {
+          if (x > 1 && x < 48 && y > 1 && y < 48 && !visited[x][y]) {
             queue.push({ x, y });
             visited[x][y] = true;
           }

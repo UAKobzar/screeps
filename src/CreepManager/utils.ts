@@ -79,3 +79,7 @@ export const createDefaultMover = (energyCapacity: number): BodyPartConstant[] =
 
   return parts;
 };
+
+export const isSource = (building: Source | Mineral<MineralConstant>): building is Source => {
+  return (building as Source).energy !== undefined;
+};

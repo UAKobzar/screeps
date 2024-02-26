@@ -10,6 +10,7 @@ import {
   ROLE_LINK_WITHDRAWER,
   ROLE_DEFENCE_MAINTENANCE
 } from "utils/constants/roles";
+import { isSource } from "./utils";
 
 const hasStore = (structure: any): structure is { store: StoreDefinition } => {
   return structure.store !== null && structure.store !== undefined;
@@ -23,11 +24,19 @@ const doOrMove = <F extends CreepDoOrMoveFunctions>(
 ) => {
   const result = (taskToDo as any).apply(creep, args);
   if (result === ERR_NOT_IN_RANGE) {
-    creep.moveTo(positionToMove.x, positionToMove.y);
+    creep.moveTo(positionToMove.x, positionToMove.y, {
+      visualizePathStyle: {
+        fill: "transparent",
+        stroke: "#fff",
+        lineStyle: "dashed",
+        strokeWidth: 0.15,
+        opacity: 0.5
+      }
+    });
   }
 };
 
-const harvestEnergy: CreepTask = (creep: Creep): boolean => {
+const harvest: CreepTask = (creep: Creep): boolean => {
   const memory = (creep.memory as TypedCreepMemory<[ROLE_HARVESTER]>).roleMemory;
   const free_capacity = creep.store.getFreeCapacity(RESOURCE_ENERGY);
   const used_capacity = creep.store.getUsedCapacity(RESOURCE_ENERGY);
@@ -37,7 +46,8 @@ const harvestEnergy: CreepTask = (creep: Creep): boolean => {
 
   const source = Game.getObjectById(memory.sourceInfo.sourceId)!;
 
-  if (source.energy === 0) return false; // nothing to gather
+  if (isSource(source) && source.energy === 0) return false; // nothing to gather
+  if (!isSource(source) && source.mineralAmount === 0) return false; // nothing to gather
 
   doOrMove(creep, source.pos, creep.harvest, source);
 
@@ -90,32 +100,53 @@ const repair: CreepTask = (creep: Creep): boolean => {
 
 const transfer: CreepTask = (creep: Creep): boolean => {
   const memory = (creep.memory as TypedCreepMemory<[ROLE_TRANSFERER, ROLE_WITHDRAWER]>).roleMemory;
-  const used_capacity = creep.store.getUsedCapacity(RESOURCE_ENERGY);
+
+  const used_capacity = creep.store.getUsedCapacity();
 
   if (used_capacity === 0) return false;
 
-  let target = creep.pos.findClosestByPath(FIND_STRUCTURES, {
-    filter: structure => {
-      return (
-        structure.structureType === STRUCTURE_TOWER && structure.store.getFreeCapacity(RESOURCE_ENERGY) >= used_capacity
-      );
+  let resource: ResourceConstant | undefined = undefined;
+
+  for (let resourceType of RESOURCES_ALL) {
+    if (creep.store[resourceType] > 0) {
+      resource = resourceType;
+      break;
     }
-  });
+  }
+
+  if (!resource) return false;
+
+  let target = null;
+
+  if (memory.priorityTargets) {
+    for (let priorityTarget of memory.priorityTargets) {
+      target =
+        target ??
+        creep.pos.findClosestByPath(FIND_STRUCTURES, {
+          filter: structure => {
+            return (
+              structure.structureType == priorityTarget &&
+              hasStore(structure) &&
+              (structure.store.getFreeCapacity(resource) ?? 0) > (priorityTarget === STRUCTURE_TOWER ? 300 : 0)
+            );
+          }
+        });
+    }
+  }
 
   if (!target && memory.job === "withdrawer") return false; // do not transfer to container we just withdrawed
 
   target =
     target ??
-    creep.room.storage ??
     creep.pos.findClosestByPath(FIND_STRUCTURES, {
       filter: structure => {
-        return hasStore(structure) && structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
+        return hasStore(structure) && (structure.store.getFreeCapacity(resource) ?? 0) > 0;
       }
     });
 
   if (!target) return false;
 
-  doOrMove(creep, target.pos, creep.transfer, target, RESOURCE_ENERGY);
+  doOrMove(creep, target.pos, creep.transfer, target, resource);
 
   return true;
 };
@@ -197,7 +228,7 @@ const withdrawRecieverLink: CreepTask = (creep: Creep): boolean => {
 
   const target = Game.getObjectById(creep.room.memory.recieverLinkId);
 
-  if (!target) return false;
+  if (!target || target.store.getUsedCapacity(RESOURCE_ENERGY) === 0) return false;
 
   doOrMove(creep, target.pos, creep.withdraw, target, RESOURCE_ENERGY);
 
@@ -234,7 +265,7 @@ const repairDefences: CreepTask = (creep: Creep): boolean => {
 
 const taskMap: CreepsTaksMap = {
   [ROLE_BUILDER]: build,
-  [ROLE_HARVESTER]: harvestEnergy,
+  [ROLE_HARVESTER]: harvest,
   [ROLE_MAINTANANCE]: repair,
   [ROLE_SPAWN_TRANSFERER]: transferToSpawn,
   [ROLE_TRANSFERER]: transfer,

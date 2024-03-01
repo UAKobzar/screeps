@@ -140,10 +140,12 @@ const generateConstructionSites = (room: Room) => {
   generateLinksConstructionSites(room);
   generateExtractor(room);
   generateTerminal(room);
+  //generateLabs(room);
 };
 
 const generateContainerConstructionSites = (room: Room) => {
   if (!room.memory.generated || !room.memory.sourcesInfo) return;
+  debugger;
   let sites = room.find(FIND_MY_CONSTRUCTION_SITES);
   let structures = room.find(FIND_STRUCTURES);
   for (let si of room.memory.sourcesInfo.filter(s => s.linkBuilt !== true)) {
@@ -280,6 +282,21 @@ const generateTerminal = (room: Room) => {
   generateConstructionSite(room, STRUCTURE_TERMINAL);
 };
 
+const generateLabs = (room: Room) => {
+  const controllerLevel = room.controller?.level ?? 0;
+  if (controllerLevel < 6) return;
+
+  const totalLabs = controllerLevel === 8 ? 10 : controllerLevel === 7 ? 6 : controllerLevel === 6 ? 3 : 0;
+
+  const labsBuilt = findBuiltStructures(room, STRUCTURE_LAB).length;
+
+  const labsToBuild = totalLabs - labsBuilt;
+
+  if (labsToBuild <= 0) return;
+
+  generateConstructionSite(room, STRUCTURE_LAB);
+};
+
 const generateConstructionSite = (room: Room, type: BuildableStructureConstant, position?: Position) => {
   position = position ?? findBuildPosition(room);
 
@@ -316,18 +333,19 @@ const getRoomCreeps = (room: Room) => {
     ];
     const upgrader: [
       string,
-      TypedCreepMemory<[ROLE_WITHDRAWER, ROLE_HARVESTER, ROLE_SPAWN_TRANSFERER, ROLE_UPGRADER]>
+      TypedCreepMemory<[ROLE_WITHDRAWER, ROLE_HARVESTER, ROLE_SPAWN_TRANSFERER, ROLE_UPGRADER, ROLE_TRANSFERER]>
     ] = [
       `${room.name}_upgrader_${sourceInfo.containerPosition.x}:${sourceInfo.containerPosition.y}`,
       {
         room: room.name,
-        roles: [ROLE_WITHDRAWER, ROLE_HARVESTER, ROLE_SPAWN_TRANSFERER, ROLE_UPGRADER],
+        roles: [ROLE_WITHDRAWER, ROLE_HARVESTER, ROLE_SPAWN_TRANSFERER, ROLE_UPGRADER, ROLE_TRANSFERER],
         roleMemory: {
           job: ROLE_WITHDRAWER,
           sourceInfo: {
             sourceId: sourceInfo.id,
             harvestingPosition: sourceInfo.pos
-          }
+          },
+          priorityTargets: [STRUCTURE_STORAGE]
         },
         bodyType: BODY_UPGRADER
       }
@@ -377,13 +395,7 @@ const getRoomCreeps = (room: Room) => {
         roles: [ROLE_LINK_WITHDRAWER, ROLE_WITHDRAWER, ROLE_TRANSFERER],
         roleMemory: {
           job: ROLE_LINK_WITHDRAWER,
-          priorityTargets: [
-            STRUCTURE_EXTENSION,
-            STRUCTURE_SPAWN,
-            STRUCTURE_TOWER,
-            STRUCTURE_TERMINAL,
-            STRUCTURE_STORAGE
-          ]
+          priorityTargets: [STRUCTURE_EXTENSION, STRUCTURE_SPAWN, STRUCTURE_TOWER, STRUCTURE_STORAGE]
         },
         bodyType: BODY_MOVER
       }
@@ -401,7 +413,7 @@ const getRoomCreeps = (room: Room) => {
         roles: [ROLE_HARVESTER, ROLE_TRANSFERER],
         roleMemory: {
           job: ROLE_HARVESTER,
-          priorityTargets: [STRUCTURE_TERMINAL, STRUCTURE_STORAGE],
+          priorityTargets: [STRUCTURE_STORAGE],
           sourceInfo: {
             harvestingPosition: mineral.pos,
             sourceId: mineral.id

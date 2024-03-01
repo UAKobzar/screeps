@@ -30,9 +30,15 @@ export const generateRoad = (room: Room, pos: RoomPosition) => {
   const spawn = room.find(FIND_MY_SPAWNS)[0];
   if (spawn === undefined) return;
 
+  const terrain = room.getTerrain();
+
   for (let x = pos.x - 1; x <= pos.x + 1; x++)
     for (let y = pos.y - 1; y <= pos.y + 1; y++) {
-      if (!comparePostion(pos, { x, y }) && !isBuildingPositionByPattern(pos)) {
+      if (
+        !comparePostion(pos, { x, y }) &&
+        !isBuildingPositionByPattern({ x, y }) &&
+        terrain.get(x, y) !== TERRAIN_MASK_WALL
+      ) {
         room.createConstructionSite(x, y, STRUCTURE_ROAD);
       }
     }

@@ -13,7 +13,7 @@ const Functions: TimerFunctions = {
 
     //todo rewrite
     if (creepName.indexOf("extractor") > -1) {
-      const memory = Memory.creeps[creepName].roleMemory as TypedCreepMemory<[ROLE_HARVESTER]>;
+      const memory = Memory.creeps[creepName] as TypedCreepMemory<[ROLE_HARVESTER]>;
       const mineral = Game.getObjectById(memory.roleMemory.sourceInfo.sourceId) as Mineral<MineralConstant>;
 
       if (mineral && mineral.ticksToRegeneration && mineral.ticksToRegeneration > 0 && mineral.mineralAmount === 0) {

@@ -11,6 +11,17 @@ const Functions: TimerFunctions = {
     }
     const spawn = Game.getObjectById(spanwId);
 
+    //todo rewrite
+    if (creepName.indexOf("extractor") > -1) {
+      const memory = Memory.creeps[creepName].roleMemory as TypedCreepMemory<[ROLE_HARVESTER]>;
+      const mineral = Game.getObjectById(memory.roleMemory.sourceInfo.sourceId) as Mineral<MineralConstant>;
+
+      if (mineral && mineral.ticksToRegeneration && mineral.ticksToRegeneration > 0 && mineral.mineralAmount === 0) {
+        TimerManager.push("spawnCreep", mineral.ticksToRegeneration, spanwId, creepName);
+        return;
+      }
+    }
+
     let energyCapacity = Memory.recoveryMode ? spawn?.room.energyAvailable : spawn?.room.energyCapacityAvailable;
     energyCapacity = energyCapacity ?? 0;
 
@@ -44,7 +55,7 @@ const Functions: TimerFunctions = {
       const exitPosition = spawn.pos.findClosestByPath(exit);
       if (!exitPosition) continue;
 
-      const path = spawn.pos.findPathTo(exitPosition);
+      const path = spawn.pos.findPathTo(exitPosition, { ignoreCreeps: true });
       path.reverse();
       const towerPositionIndex = path.findIndex(step => step.x < 47 && step.y < 47 && step.x > 2 && step.y > 2);
       const rampartPositionStep = path[towerPositionIndex - 1];

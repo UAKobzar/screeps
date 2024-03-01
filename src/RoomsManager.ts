@@ -14,7 +14,7 @@ import { BODY_BUILDER, BODY_HARVESTER, BODY_MOVER, BODY_UPGRADER } from "utils/c
 import { TimerManager } from "TimerManager";
 import { sortBy } from "lodash";
 import { comparePostion, isEmptyPosition, isStructure } from "utils/position";
-import { findBuildPosition, findBuiltStructures, generateRoad } from "utils/construction";
+import { findBuildPosition, findBuiltStructures, generateRoad, positionBFS, positionPathBFS } from "utils/construction";
 
 type InternalTerrain = number[][];
 type PathMatrix = {
@@ -140,7 +140,7 @@ const generateConstructionSites = (room: Room) => {
   generateLinksConstructionSites(room);
   generateExtractor(room);
   generateTerminal(room);
-  //generateLabs(room);
+  generateLabs(room);
 };
 
 const generateContainerConstructionSites = (room: Room) => {
@@ -266,6 +266,8 @@ const generateExtractor = (room: Room) => {
 
   const mineral = room.find(FIND_MINERALS)[0];
 
+  if (!mineral) return;
+
   generateConstructionSite(room, STRUCTURE_EXTRACTOR, mineral.pos);
 
   room.memory.regenerateSpawnQueue = true;
@@ -286,7 +288,7 @@ const generateLabs = (room: Room) => {
   const controllerLevel = room.controller?.level ?? 0;
   if (controllerLevel < 6) return;
 
-  const totalLabs = controllerLevel === 8 ? 10 : controllerLevel === 7 ? 6 : controllerLevel === 6 ? 3 : 0;
+  const totalLabs = controllerLevel === 8 ? 9 : controllerLevel === 7 ? 6 : controllerLevel === 6 ? 3 : 0;
 
   const labsBuilt = findBuiltStructures(room, STRUCTURE_LAB).length;
 
@@ -294,17 +296,57 @@ const generateLabs = (room: Room) => {
 
   if (labsToBuild <= 0) return;
 
-  generateConstructionSite(room, STRUCTURE_LAB);
+  const flags = room.find(FIND_FLAGS, { filter: f => f.name.indexOf("lab") > -1 });
+
+  if (flags.length === 0) {
+    const spawn = room.find(FIND_MY_SPAWNS)[0]?.pos;
+
+    if (!spawn) return;
+
+    const position = positionPathBFS(
+      room,
+      position => {
+        if (position.x < 3 || position.x > 46 || position.y < 3 || position.y > 46) return false;
+        const area = room.lookAtArea(position.y - 2, position.x - 2, position.y + 2, position.x + 2);
+
+        return Object.keys(area).every(y =>
+          Object.keys(area[Number(y)]).every(x => isEmptyPosition(area[Number(y)][Number(x)], true))
+        );
+      },
+      spawn
+    );
+
+    if (!position) return;
+
+    for (let x = position.x - 1; x <= position.x + 1; x++)
+      for (let y = position.y - 1; y <= position.y + 1; y++) {
+        if (!comparePostion(position, { x, y })) room.createFlag(x, y, `${room.name}_lab_${x}:${y}`);
+      }
+  } else {
+    for (let flag of flags) {
+      if (generateConstructionSite(room, STRUCTURE_LAB, flag.pos) === OK) {
+        flag.remove();
+        return;
+      }
+    }
+  }
 };
 
-const generateConstructionSite = (room: Room, type: BuildableStructureConstant, position?: Position) => {
+const generateConstructionSite = (
+  room: Room,
+  type: BuildableStructureConstant,
+  position?: Position
+): ScreepsReturnCode => {
   position = position ?? findBuildPosition(room);
 
   if (!position) {
-    return;
+    return ERR_NO_PATH;
   }
-  room.createConstructionSite(position.x, position.y, type);
-  generateRoad(room, new RoomPosition(position.x, position.y, room.name));
+  const result = room.createConstructionSite(position.x, position.y, type);
+  if (result === OK) {
+    generateRoad(room, new RoomPosition(position.x, position.y, room.name));
+  }
+  return result;
 };
 
 const getRoomCreeps = (room: Room) => {

@@ -193,7 +193,8 @@ const generateDefences = (room: Room) => {
 const generateStorageConstructionSite = (room: Room) => {
   if (!room.controller?.level || room.controller.level < 4 || room.storage) return;
 
-  const isBuilding = room.find(FIND_MY_CONSTRUCTION_SITES, { filter: s => s.structureType === STRUCTURE_STORAGE });
+  const isBuilding =
+    room.find(FIND_MY_CONSTRUCTION_SITES, { filter: s => s.structureType === STRUCTURE_STORAGE }).length == 1;
 
   if (isBuilding) return;
 

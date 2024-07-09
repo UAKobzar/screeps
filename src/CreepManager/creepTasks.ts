@@ -60,7 +60,10 @@ const build: CreepTask = (creep: Creep): boolean => {
 
   if (used_capacity === 0) return false; //can't build
 
-  const buildTarget = creep.pos.findClosestByRange(FIND_CONSTRUCTION_SITES);
+  //let buildTarget = memory.targetCache ? Game.getObjectById(memory.targetCache) : null;
+
+  let buildTarget = creep.pos.findClosestByPath(FIND_CONSTRUCTION_SITES);
+  buildTarget = buildTarget ?? creep.pos.findClosestByRange(FIND_CONSTRUCTION_SITES);
   if (!buildTarget) return false; //nothing to build
 
   doOrMove(creep, buildTarget.pos, creep.build, buildTarget);
